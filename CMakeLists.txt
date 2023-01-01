@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-add_subdirectory(cnpy)
+add_subdirectory(3rdparty/cnpy)
 
 project(dgsparse C CXX CUDA)
 find_package( CUDAToolkit )

@@ -5,22 +5,24 @@
 //  date  : 2021/10/13
 // compile: nvcc version >=11.0
 
-#include "../../src/ge-spmm/gespmm.h" // gespmmCsrSpMM()
-#include "../util/sp_util.hpp"        // read_mtx
-#include <cstdlib>                    // std::rand(), RAND_MAX
-#include <cuda_runtime_api.h>         // cudaMalloc, cudaMemcpy, etc.
-#include <cusparse.h> // cusparseSpMM (>= v11.0) or cusparseScsrmm
 #include <cnpy.h>
-#include <string>
+#include <cuda_runtime_api.h>  // cudaMalloc, cudaMemcpy, etc.
+#include <cusparse.h>          // cusparseSpMM (>= v11.0) or cusparseScsrmm
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <cstdlib>  // std::rand(), RAND_MAX
+#include <string>
 #include <vector>
 
+#include "../../src/ge-spmm/gespmm.h"  // gespmmCsrSpMM()
+#include "../util/sp_util.hpp"         // read_mtx
 
-void read_npz_file(const std::string& filename, int &M, int &K, int &NNZ, std::vector<int>& indptr, std::vector<int>& indices) {
+void read_npz_file(const std::string &filename, int &M, int &K, int &NNZ, std::vector<int> &indptr,
+                   std::vector<int> &indices) {
   cnpy::npz_t data = cnpy::npz_load(filename);
   cnpy::NpyArray shape = data["shape"];
-  int* shape_data = shape.data<int>();
+  int *shape_data = shape.data<int>();
   M = shape_data[0];
   K = shape_data[1];
   NNZ = shape_data[2];
@@ -29,12 +31,12 @@ void read_npz_file(const std::string& filename, int &M, int &K, int &NNZ, std::v
 }
 
 int main(int argc, const char **argv) {
-
   /// check command-line argument
 
   if (argc < 2) {
-    printf("Require command-line argument: name of the sparse matrix file in "
-           ".mtx format.\n");
+    printf(
+        "Require command-line argument: name of the sparse matrix file in "
+        ".mtx format.\n");
     return EXIT_FAILURE;
   }
 
@@ -42,27 +44,25 @@ int main(int argc, const char **argv) {
   // Load sparse matrix
   //
 
-  int M;                              // number of A-rows
-  int K;                              // number of A-columns
-  int nnz;                            // number of non-zeros in A
-  std::vector<int> csr_indptr_buffer; // buffer for indptr array in CSR format
-  std::vector<int>
-      csr_indices_buffer; // buffer for indices (column-ids) array in CSR format
+  int M;                                // number of A-rows
+  int K;                                // number of A-columns
+  int nnz;                              // number of non-zeros in A
+  std::vector<int> csr_indptr_buffer;   // buffer for indptr array in CSR format
+  std::vector<int> csr_indices_buffer;  // buffer for indices (column-ids) array in CSR format
   // load sparse matrix from mtx file
   // read_mtx_file(argv[1], M, K, nnz, csr_indptr_buffer, csr_indices_buffer);
   read_npz_file(argv[1], M, K, nnz, csr_indptr_buffer, csr_indices_buffer);
-  printf("Finish reading matrix %d rows, %d columns, %d nnz. \nIgnore original "
-         "values and use randomly generated values.\n",
-         M, K, nnz);
+  printf(
+      "Finish reading matrix %d rows, %d columns, %d nnz. \nIgnore original "
+      "values and use randomly generated values.\n",
+      M, K, nnz);
 
   // Create GPU arrays
-  int N = 128; // number of B-columns
+  int N = 128;  // number of B-columns
   if (argc > 2) {
     N = atoi(argv[2]);
   }
-  assert(
-      N > 0 &&
-      "second command-line argument is number of B columns, should be >0.\n");
+  assert(N > 0 && "second command-line argument is number of B columns, should be >0.\n");
 
   float *B_h = NULL, *C_h = NULL, *csr_values_h = NULL, *C_ref = NULL;
   float *B_d = NULL, *C_d = NULL, *csr_values_d = NULL;
@@ -86,15 +86,13 @@ int main(int argc, const char **argv) {
   CUDA_CHECK(cudaMalloc((void **)&csr_indptr_d, sizeof(int) * (M + 1)));
   CUDA_CHECK(cudaMalloc((void **)&csr_indices_d, sizeof(int) * nnz));
 
-  CUDA_CHECK(
-      cudaMemcpy(B_d, B_h, sizeof(float) * K * N, cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(B_d, B_h, sizeof(float) * K * N, cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemset(C_d, 0x0, sizeof(float) * M * N));
-  CUDA_CHECK(cudaMemcpy(csr_values_d, csr_values_h, sizeof(float) * nnz,
+  CUDA_CHECK(cudaMemcpy(csr_values_d, csr_values_h, sizeof(float) * nnz, cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(csr_indptr_d, csr_indptr_buffer.data(), sizeof(int) * (M + 1),
                         cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(csr_indptr_d, csr_indptr_buffer.data(),
-                        sizeof(int) * (M + 1), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(csr_indices_d, csr_indices_buffer.data(),
-                        sizeof(int) * nnz, cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(csr_indices_d, csr_indices_buffer.data(), sizeof(int) * nnz,
+                        cudaMemcpyHostToDevice));
 
   //
   // Run Cusparse-SpMM and check result
@@ -108,45 +106,40 @@ int main(int argc, const char **argv) {
   CUSPARSE_CHECK(cusparseCreate(&handle));
 
   // creating sparse csr matrix
-  CUSPARSE_CHECK(cusparseCreateCsr(
-      &csrDescr, M, K, nnz, csr_indptr_d, csr_indices_d, csr_values_d,
-      CUSPARSE_INDEX_32I, // index 32-integer for indptr
-      CUSPARSE_INDEX_32I, // index 32-integer for indices
-      CUSPARSE_INDEX_BASE_ZERO,
-      CUDA_R_32F // datatype: 32-bit float real number
-      ));
+  CUSPARSE_CHECK(cusparseCreateCsr(&csrDescr, M, K, nnz, csr_indptr_d, csr_indices_d, csr_values_d,
+                                   CUSPARSE_INDEX_32I,  // index 32-integer for indptr
+                                   CUSPARSE_INDEX_32I,  // index 32-integer for indices
+                                   CUSPARSE_INDEX_BASE_ZERO,
+                                   CUDA_R_32F  // datatype: 32-bit float real number
+                                   ));
 
   // creating dense matrices
-  CUSPARSE_CHECK(cusparseCreateDnMat(&dnMatInputDescr, K, N, N, B_d, CUDA_R_32F,
-                                     CUSPARSE_ORDER_ROW));
-  CUSPARSE_CHECK(cusparseCreateDnMat(&dnMatOutputDescr, M, N, N, C_d,
-                                     CUDA_R_32F, CUSPARSE_ORDER_ROW));
+  CUSPARSE_CHECK(
+      cusparseCreateDnMat(&dnMatInputDescr, K, N, N, B_d, CUDA_R_32F, CUSPARSE_ORDER_ROW));
+  CUSPARSE_CHECK(
+      cusparseCreateDnMat(&dnMatOutputDescr, M, N, N, C_d, CUDA_R_32F, CUSPARSE_ORDER_ROW));
 
   // allocate workspace buffer
   size_t workspace_size;
-  CUSPARSE_CHECK(cusparseSpMM_bufferSize(
-      handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
-      CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, csrDescr, dnMatInputDescr,
-      &beta, dnMatOutputDescr, CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT,
-      &workspace_size));
+  CUSPARSE_CHECK(cusparseSpMM_bufferSize(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+                                         CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, csrDescr,
+                                         dnMatInputDescr, &beta, dnMatOutputDescr, CUDA_R_32F,
+                                         CUSPARSE_SPMM_ALG_DEFAULT, &workspace_size));
 
   void *workspace = NULL;
   CUDA_CHECK(cudaMalloc(&workspace, workspace_size));
 
   // run SpMM
   CUSPARSE_CHECK(cusparseSpMM(handle,
-                              CUSPARSE_OPERATION_NON_TRANSPOSE, // opA
-                              CUSPARSE_OPERATION_NON_TRANSPOSE, // opB
-                              &alpha, csrDescr, dnMatInputDescr, &beta,
-                              dnMatOutputDescr, CUDA_R_32F,
-                              CUSPARSE_SPMM_ALG_DEFAULT, workspace));
+                              CUSPARSE_OPERATION_NON_TRANSPOSE,  // opA
+                              CUSPARSE_OPERATION_NON_TRANSPOSE,  // opB
+                              &alpha, csrDescr, dnMatInputDescr, &beta, dnMatOutputDescr,
+                              CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, workspace));
 
-  CUDA_CHECK(
-      cudaMemcpy(C_h, C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost));
+  CUDA_CHECK(cudaMemcpy(C_h, C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost));
 
-  spmm_reference_host<int, float>(M, N, K, csr_indptr_buffer.data(),
-                                  csr_indices_buffer.data(), csr_values_h, B_h,
-                                  C_ref);
+  spmm_reference_host<int, float>(M, N, K, csr_indptr_buffer.data(), csr_indices_buffer.data(),
+                                  csr_values_h, B_h, C_ref);
 
   bool correct = check_result<float>(M, N, C_h, C_ref);
 
@@ -155,7 +148,6 @@ int main(int argc, const char **argv) {
   //
 
   if (correct) {
-
     GpuTimer gpu_timer;
     int warmup_iter = 10;
     int repeat_iter = 100;
@@ -165,10 +157,10 @@ int main(int argc, const char **argv) {
       }
 
       cusparseSpMM(handle,
-                   CUSPARSE_OPERATION_NON_TRANSPOSE, // opA
-                   CUSPARSE_OPERATION_NON_TRANSPOSE, // opB
-                   &alpha, csrDescr, dnMatInputDescr, &beta, dnMatOutputDescr,
-                   CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, workspace);
+                   CUSPARSE_OPERATION_NON_TRANSPOSE,  // opA
+                   CUSPARSE_OPERATION_NON_TRANSPOSE,  // opB
+                   &alpha, csrDescr, dnMatInputDescr, &beta, dnMatOutputDescr, CUDA_R_32F,
+                   CUSPARSE_SPMM_ALG_DEFAULT, workspace);
     }
     gpu_timer.stop();
 
@@ -178,21 +170,20 @@ int main(int argc, const char **argv) {
 
     float gflops = MFlop_count / kernel_dur_msecs;
 
-    printf("[Cusparse] Report: spmm A(%d x %d) * B(%d x %d) sparsity %f "
-           "(nnz=%d) \n Time %f (ms), Throughput %f (gflops).\n",
-           M, K, K, N, (float)nnz / M / K, nnz, kernel_dur_msecs, gflops);
+    printf(
+        "[Cusparse] Report: spmm A(%d x %d) * B(%d x %d) sparsity %f "
+        "(nnz=%d) \n Time %f (ms), Throughput %f (gflops).\n",
+        M, K, K, N, (float)nnz / M / K, nnz, kernel_dur_msecs, gflops);
   }
 
   SpMatCsrDescr_t spmatA{M, K, nnz, csr_indptr_d, csr_indices_d, csr_values_d};
-  gespmmAlg_t algs[] = {
-      GESPMM_ALG_SEQREDUCE_ROWBALANCE,  GESPMM_ALG_PARREDUCE_ROWBALANCE,
-      GESPMM_ALG_SEQREDUCE_NNZBALANCE,  GESPMM_ALG_PARREDUCE_NNZBALANCE,
-      GESPMM_ALG_ROWCACHING_ROWBALANCE, GESPMM_ALG_ROWCACHING_NNZBALANCE};
+  gespmmAlg_t algs[] = {GESPMM_ALG_SEQREDUCE_ROWBALANCE,  GESPMM_ALG_PARREDUCE_ROWBALANCE,
+                        GESPMM_ALG_SEQREDUCE_NNZBALANCE,  GESPMM_ALG_PARREDUCE_NNZBALANCE,
+                        GESPMM_ALG_ROWCACHING_ROWBALANCE, GESPMM_ALG_ROWCACHING_NNZBALANCE};
 
   float best_dur = 1e9;
 
   for (auto alg : algs) {
-
     //
     // Run GE-SpMM and check result
     //
@@ -202,45 +193,43 @@ int main(int argc, const char **argv) {
     gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);
 
     cudaDeviceSynchronize();
-    CUDA_CHECK(
-        cudaMemcpy(C_h, C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(C_h, C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost));
 
-    spmm_reference_host<int, float>(M, N, K, csr_indptr_buffer.data(),
-                                    csr_indices_buffer.data(), csr_values_h,
-                                    B_h, C_ref);
+    spmm_reference_host<int, float>(M, N, K, csr_indptr_buffer.data(), csr_indices_buffer.data(),
+                                    csr_values_h, B_h, C_ref);
 
     bool correct = check_result<float>(M, N, C_h, C_ref);
 
-    //if (correct) {
+    // if (correct) {
 
-      // benchmark GE-SpMM performance
+    // benchmark GE-SpMM performance
 
-      GpuTimer gpu_timer;
-      int warmup_iter = 10;
-      int repeat_iter = 100;
-      for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
-        if (iter == warmup_iter) {
-          gpu_timer.start();
-        }
-
-        gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);
-      }
-      gpu_timer.stop();
-
-      float kernel_dur_msecs = gpu_timer.elapsed_msecs() / repeat_iter;
-
-      if (kernel_dur_msecs < best_dur) {
-        best_dur = kernel_dur_msecs;
+    GpuTimer gpu_timer;
+    int warmup_iter = 10;
+    int repeat_iter = 100;
+    for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
+      if (iter == warmup_iter) {
+        gpu_timer.start();
       }
 
-      float MFlop_count = (float)nnz / 1e6 * N * 2;
+      gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);
+    }
+    gpu_timer.stop();
 
-      float gflops = MFlop_count / kernel_dur_msecs;
+    float kernel_dur_msecs = gpu_timer.elapsed_msecs() / repeat_iter;
 
-      printf("[GE-SpMM][Alg: %d] Report: spmm A(%d x %d) * B(%d x %d) sparsity "
-             "%f (nnz=%d) \n Time %f (ms), Throughput %f (gflops).\n",
-             alg, M, K, K, N, (float)nnz / M / K, nnz, kernel_dur_msecs,
-             gflops);
+    if (kernel_dur_msecs < best_dur) {
+      best_dur = kernel_dur_msecs;
+    }
+
+    float MFlop_count = (float)nnz / 1e6 * N * 2;
+
+    float gflops = MFlop_count / kernel_dur_msecs;
+
+    printf(
+        "[GE-SpMM][Alg: %d] Report: spmm A(%d x %d) * B(%d x %d) sparsity "
+        "%f (nnz=%d) \n Time %f (ms), Throughput %f (gflops).\n",
+        alg, M, K, K, N, (float)nnz / M / K, nnz, kernel_dur_msecs, gflops);
     // }
   }
 
@@ -248,26 +237,16 @@ int main(int argc, const char **argv) {
 
   /// free memory
 
-  if (B_h)
-    free(B_h);
-  if (C_h)
-    free(C_h);
-  if (C_ref)
-    free(C_ref);
-  if (csr_values_h)
-    free(csr_values_h);
-  if (B_d)
-    CUDA_CHECK(cudaFree(B_d));
-  if (C_d)
-    CUDA_CHECK(cudaFree(C_d));
-  if (csr_values_d)
-    CUDA_CHECK(cudaFree(csr_values_d));
-  if (csr_indptr_d)
-    CUDA_CHECK(cudaFree(csr_indptr_d));
-  if (csr_indices_d)
-    CUDA_CHECK(cudaFree(csr_indices_d));
-  if (workspace)
-    CUDA_CHECK(cudaFree(workspace));
+  if (B_h) free(B_h);
+  if (C_h) free(C_h);
+  if (C_ref) free(C_ref);
+  if (csr_values_h) free(csr_values_h);
+  if (B_d) CUDA_CHECK(cudaFree(B_d));
+  if (C_d) CUDA_CHECK(cudaFree(C_d));
+  if (csr_values_d) CUDA_CHECK(cudaFree(csr_values_d));
+  if (csr_indptr_d) CUDA_CHECK(cudaFree(csr_indptr_d));
+  if (csr_indices_d) CUDA_CHECK(cudaFree(csr_indices_d));
+  if (workspace) CUDA_CHECK(cudaFree(workspace));
 
   // destroy matrix/vector descriptors
   CUSPARSE_CHECK(cusparseDestroyDnMat(dnMatInputDescr));

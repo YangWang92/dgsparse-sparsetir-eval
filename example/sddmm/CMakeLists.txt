@@ -8,7 +8,9 @@ file(GLOB SDDMMSRC
   *.cc
 )
 
-add_executable(sddmm ${SDDMMSRC})
-target_include_directories(sddmm PRIVATE ../../cnpy)
-target_include_directories(sddmm PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-target_link_libraries(sddmm PRIVATE CUDA::cusparse CUDA::cublas CUDA::curand CUDA::cudart cnpy dgsparse)
+add_executable(dgsparse-sddmm ${SDDMMSRC})
+target_include_directories(dgsparse-sddmm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/cnpy/)
+target_include_directories(dgsparse-sddmm PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_link_libraries(dgsparse-sddmm PRIVATE CUDA::cusparse CUDA::cublas CUDA::curand CUDA::cudart cnpy dgsparse)
+
+install(TARGETS dgsparse-sddmm)
