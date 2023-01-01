@@ -3,9 +3,10 @@ OBJ_DIR = ../../objs
 SRCS = $(wildcard *.cu)
 OBJS = $(patsubst %cu, %o, $(SRCS))
 
-INCLUDE = -I$(CUDA_HOME)/include/ -I../../include/
+INCLUDE = -I/usr/local/cuda-11.1/include/ -I../../include/
 NVCC_FLAGS =\
--O3  -lcusparse -lcudart\
+-allow-unsupported-compiler \
+-O3  -lcusparse \
 -shared -std=c++11\
 -Xcompiler "-fPIC" \
 -gencode arch=compute_70,code=sm_70 \
@@ -14,7 +15,7 @@ NVCC_FLAGS =\
 -gencode arch=compute_86,code=sm_86 
 
 LIBRARY = -lcudart
-LOADPATH = -L$(CUDA_HOME)/lib64
+LOADPATH = -L/usr/local/cuda-11.1/lib64
 TARGET := libsddmm.a
 .PHONY : all clean
 
