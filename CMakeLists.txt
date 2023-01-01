@@ -15,6 +15,7 @@ file(GLOB DGSPARSE_SRC
 add_library(dgsparse SHARED ${DGSPARSE_SRC})
 target_include_directories(dgsparse PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 target_link_libraries(dgsparse PRIVATE CUDA::cusparse CUDA::cublas CUDA::curand CUDA::cudart cnpy)
+install(TARGETS dgsparse)
 
 add_subdirectory(example/ge-spmm)
 add_subdirectory(example/sddmm)
