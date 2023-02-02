@@ -40,6 +40,8 @@ int main(int argc, const char **argv) {
     return EXIT_FAILURE;
   }
 
+  bool flush_l2 = std::strcmp(std::getenv("FLUSH_L2"), "ON") == 0;
+
   //
   // Load sparse matrix
   //
@@ -153,7 +155,7 @@ int main(int argc, const char **argv) {
     int repeat_iter = 100;
     for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
       if (iter == warmup_iter) {
-        gpu_timer.start();
+        gpu_timer.start(flush_l2);
       }
 
       cusparseSpMM(handle,
@@ -209,7 +211,7 @@ int main(int argc, const char **argv) {
     int repeat_iter = 100;
     for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
       if (iter == warmup_iter) {
-        gpu_timer.start();
+        gpu_timer.start(flush_l2);
       }
 
       gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);

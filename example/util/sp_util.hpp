@@ -17,6 +17,7 @@
 #include <tuple>
 #include <typeinfo>
 #include <vector>
+#include "l2flush.cuh"
 
 #define CUDA_CHECK(func)                                                       \
   {                                                                            \
@@ -136,6 +137,7 @@ bool check_result(int M, int N, DType *C, DType *C_ref) {
 struct GpuTimer {
   cudaEvent_t startEvent;
   cudaEvent_t stopEvent;
+  nvbench::detail::l2flush l2flush;
 
   GpuTimer() {
     cudaEventCreate(&startEvent);
@@ -147,7 +149,12 @@ struct GpuTimer {
     cudaEventDestroy(stopEvent);
   }
 
-  void start() { cudaEventRecord(startEvent, 0); }
+  void start(bool flush_l2) {
+    if (flush_l2) {
+      l2flush.flush();
+    }
+    cudaEventRecord(startEvent, 0);
+  }
 
   void stop() {
     cudaEventRecord(stopEvent, 0);

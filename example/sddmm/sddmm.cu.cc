@@ -39,6 +39,8 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  bool flush_l2 = std::strcmp(std::getenv("FLUSH_L2"), "ON") == 0;
+
   //
   // Load sparse matrix
   //
@@ -162,7 +164,7 @@ int main(int argc, char *argv[]) {
     int repeat_iter = 100;
     for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
       if (iter == warmup_iter) {
-        gpu_timer.start();
+        gpu_timer.start(flush_l2);
       }
       cusparseSDDMM(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
                     &alpha, AMatDecsr, BMatDecsr, &beta, csrDescr, CUDA_R_32F,
@@ -193,7 +195,7 @@ int main(int argc, char *argv[]) {
     int repeat_iter = 100;
     for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
       if (iter == warmup_iter) {
-        gpu_timer.start();
+        gpu_timer.start(flush_l2);
       }
       sddmm_cuda_csr(M, K, nnz, csr_indptr_d, csr_indices_d, A_d, B_d, C_d);
     }
@@ -216,7 +218,7 @@ int main(int argc, char *argv[]) {
     int repeat_iter = 100;
     for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
       if (iter == warmup_iter) {
-        gpu_timer.start();
+        gpu_timer.start(flush_l2);
       }
       sddmm_cuda_coo(K, nnz, row_d, csr_indices_d, A_d, B_d, C_d);
     }
