@@ -40,7 +40,8 @@ int main(int argc, const char **argv) {
     return EXIT_FAILURE;
   }
 
-  bool flush_l2 = std::strcmp(std::getenv("FLUSH_L2"), "ON") == 0;
+  char *env_flush_l2 = std::getenv("FLUSH_L2");
+  bool flush_l2 = env_flush_l2 ? std::strcmp(env_flush_l2, "ON") == 0 : false;
 
   //
   // Load sparse matrix
@@ -153,20 +154,38 @@ int main(int argc, const char **argv) {
     GpuTimer gpu_timer;
     int warmup_iter = 10;
     int repeat_iter = 100;
-    for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
-      if (iter == warmup_iter) {
-        gpu_timer.start(flush_l2);
+    float kernel_dur_msecs = 0;
+    if (flush_l2) {
+      for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
+        if (iter >= warmup_iter) {
+          gpu_timer.start(flush_l2);
+        }
+        cusparseSpMM(handle,
+                     CUSPARSE_OPERATION_NON_TRANSPOSE,  // opA
+                     CUSPARSE_OPERATION_NON_TRANSPOSE,  // opB
+                     &alpha, csrDescr, dnMatInputDescr, &beta, dnMatOutputDescr, CUDA_R_32F,
+                     CUSPARSE_SPMM_ALG_DEFAULT, workspace);
+        if (iter >= warmup_iter) {
+          gpu_timer.stop();
+          kernel_dur_msecs += gpu_timer.elapsed_msecs();
+        }
       }
+      kernel_dur_msecs /= repeat_iter;
+    } else {
+      for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
+        if (iter == warmup_iter) {
+          gpu_timer.start(flush_l2);
+        }
 
-      cusparseSpMM(handle,
-                   CUSPARSE_OPERATION_NON_TRANSPOSE,  // opA
-                   CUSPARSE_OPERATION_NON_TRANSPOSE,  // opB
-                   &alpha, csrDescr, dnMatInputDescr, &beta, dnMatOutputDescr, CUDA_R_32F,
-                   CUSPARSE_SPMM_ALG_DEFAULT, workspace);
+        cusparseSpMM(handle,
+                     CUSPARSE_OPERATION_NON_TRANSPOSE,  // opA
+                     CUSPARSE_OPERATION_NON_TRANSPOSE,  // opB
+                     &alpha, csrDescr, dnMatInputDescr, &beta, dnMatOutputDescr, CUDA_R_32F,
+                     CUSPARSE_SPMM_ALG_DEFAULT, workspace);
+      }
+      gpu_timer.stop();
+      kernel_dur_msecs = gpu_timer.elapsed_msecs() / repeat_iter;
     }
-    gpu_timer.stop();
-
-    float kernel_dur_msecs = gpu_timer.elapsed_msecs() / repeat_iter;
 
     float MFlop_count = (float)nnz / 1e6 * N * 2;
 
@@ -209,16 +228,29 @@ int main(int argc, const char **argv) {
     GpuTimer gpu_timer;
     int warmup_iter = 10;
     int repeat_iter = 100;
-    for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
-      if (iter == warmup_iter) {
-        gpu_timer.start(flush_l2);
+
+    float kernel_dur_msecs = 0;
+    if (flush_l2) {
+      for (int iter = 0; iter < warmup_iter; iter++) {
+        gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);
       }
-
-      gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);
+      for (int iter = 0; iter < repeat_iter; iter++) {
+        gpu_timer.start(flush_l2);
+        gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);
+        gpu_timer.stop();
+        kernel_dur_msecs += gpu_timer.elapsed_msecs();
+      }
+      kernel_dur_msecs /= repeat_iter;
+    } else {
+      for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
+        if (iter == warmup_iter) {
+          gpu_timer.start(flush_l2);
+        }
+        gespmmCsrSpMM(spmatA, B_d, N, C_d, true, alg);
+      }
+      gpu_timer.stop();
+      kernel_dur_msecs = gpu_timer.elapsed_msecs() / repeat_iter;
     }
-    gpu_timer.stop();
-
-    float kernel_dur_msecs = gpu_timer.elapsed_msecs() / repeat_iter;
 
     if (kernel_dur_msecs < best_dur) {
       best_dur = kernel_dur_msecs;
