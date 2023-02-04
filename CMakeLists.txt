@@ -33,4 +33,4 @@ install(TARGETS dgsparse)
 add_subdirectory(example/ge-spmm)
 add_subdirectory(example/sddmm)
 
-set_property(TARGET dgsparse dgsparse-sddmm dgsparse-gespmm PROPERTY CUDA_ARCHITECTURES "70;75;80;86")
+set_property(TARGET dgsparse dgsparse-sddmm dgsparse-gespmm PROPERTY CUDA_ARCHITECTURES native)
