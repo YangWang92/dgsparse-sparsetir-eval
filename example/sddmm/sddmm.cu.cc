@@ -160,6 +160,7 @@ int main(int argc, char *argv[]) {
   // bool correct = check_result<float>(nnz, 1, csr_values_h, C_ref);
 
   if (1) {
+    // benchmark cusparse performance
     GpuTimer gpu_timer;
     int warmup_iter = 10;
     int repeat_iter = 100;
@@ -207,7 +208,7 @@ int main(int argc, char *argv[]) {
   CUDA_CHECK(cudaMemset(C_d, 0x0, sizeof(float) * nnz));
 
   if (1) {
-    // benchmark GE-SpMM performance
+    // benchmark dgsparse-SDDMM-csr performance
     GpuTimer gpu_timer;
     int warmup_iter = 10;
     int repeat_iter = 100;
@@ -245,14 +246,14 @@ int main(int argc, char *argv[]) {
   }
 
   if (1) {
-    // benchmark GE-SpMM performance
+    // benchmark dgsparse-SDDMM-coo performance
     GpuTimer gpu_timer;
     int warmup_iter = 10;
     int repeat_iter = 100;
     float kernel_dur_msecs = 0;
     if (flush_l2) {
       for (int iter = 0; iter < warmup_iter + repeat_iter; iter++) {
-        if (iter == warmup_iter) {
+        if (iter >= warmup_iter) {
           gpu_timer.start(flush_l2);
         }
         sddmm_cuda_coo(K, nnz, row_d, csr_indices_d, A_d, B_d, C_d);
